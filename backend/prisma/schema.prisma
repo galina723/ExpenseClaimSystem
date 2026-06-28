@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  //output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLAIMANT
+  MANAGER
+  FINANCE
+}
+
+enum ClaimStatus {
+  DRAFT
+  PENDING_MANAGER
+  PENDING_FINANCE
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+enum AuditAction {
+  CREATE_CLAIM
+  UPDATE_CLAIM
+  SUBMIT_CLAIM
+
+  APPROVE_CLAIM
+  REJECT_CLAIM
+
+  ADD_ITEM
+  UPDATE_ITEM
+  DELETE_ITEM
+
+  UPLOAD_ATTACHMENT
+}
+
+enum NotificationType {
+  CLAIM_SUBMITTED
+  CLAIM_PENDING_APPROVAL
+  CLAIM_APPROVED
+  CLAIM_REJECTED
+}
+
+model Department {
+  departmentId String @id @default(uuid())
+  name String @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  //user
+  users User[]
+}
+model User {
+  userId String @id @default(uuid())
+  name String @db.VarChar(255)
+  email String @db.VarChar(255) @unique
+  avatar String? @db.VarChar(255)
+  password String @db.VarChar(255)
+  createdAt DateTime @default(now())
+  role Role
+
+  //foreign key 
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [departmentId], onDelete: Cascade)
+  
+  //claims
+  claims Claim[]
+
+  //notifications
+  notifications Notification[]
+
+  //approvals
+  approvals Approval[]
+
+  //audit logs
+  auditLogs AuditLog[]
+
+  @@index([departmentId])
+  @@index([email])
+}
+model Claim {
+  claimId String @id @default(uuid())
+  title String 
+  description String @db.Text
+  totalAmount Decimal @db.Decimal(10, 2)
+  status ClaimStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  submittedAt DateTime?
+  deletedAt DateTime?
+
+
+  //foreign key
+  userId String
+  user User @relation(fields: [userId], references: [userId])
+
+  //claim items
+  claimItems ClaimItem[]
+  //approvals
+  approvals Approval[]
+  //audit logs
+  auditLogs AuditLog[]
+
+  @@index([userId])
+  @@index([status])
+}
+model ClaimItem {
+  claimItemId String @id @default(uuid())
+  category String @db.VarChar(255)
+  description String @db.Text
+  expenseDate DateTime @db.Date
+  amount Decimal @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  //foreign key
+  claimId String
+  claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+
+  //attachment
+  attachments Attachment[]
+
+  @@index([claimId])
+}
+model Attachment {
+  attachmentId String @id @default(uuid())
+  fileName String @db.VarChar(255)
+  fileType String @db.VarChar(255)
+  fileSize Int
+  fileUrl String @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  //foreign key
+  claimItemId String
+  claimItem ClaimItem @relation(fields: [claimItemId], references: [claimItemId], onDelete: Cascade)
+
+  @@index([claimItemId])
+}
+model Approval {
+  approvalId String @id @default(uuid())
+  approvalLevel Int
+  decision ApprovalDecision
+  comment String? @db.Text
+  createdAt DateTime @default(now())
+
+  //foreign key
+  claimId String
+  claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([claimId])
+  @@index([userId])
+  @@index([claimId, approvalLevel])
+}
+model AuditLog {
+  auditLogId String @id @default(uuid())
+  action AuditAction
+  metaData Json?
+
+  createdAt DateTime @default(now())
+
+  //foreign key
+  claimId String
+  claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [userId])
+
+  @@index([claimId, createdAt])
+}
+model Notification {
+  notificationId String @id @default(uuid())
+  type NotificationType
+  message String @db.Text
+  isRead Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  //foreign key
+  userId String
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  @@index([userId])
+}
